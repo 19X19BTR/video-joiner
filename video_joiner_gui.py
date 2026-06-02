@@ -49,12 +49,18 @@ AUDIO_EXTS = {'.mp3', '.wav', '.aac', '.flac', '.ogg', '.m4a', '.wma'}
 DEFAULT_FPS = 30
 DEFAULT_CRF = 23
 DEFAULT_AUDIO_BITRATE = '128k'
-DEFAULT_BGM_DIR = r'D:\SMB\code_file\拼接视频\BGM'
+def _get_app_dir():
+    """获取应用根目录（打包后为exe所在目录，开发时为脚本所在目录）。"""
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
 
-DEFAULT_INPUT_ROOT = r'D:\SMB\code_file\拼接视频\input'
-DEFAULT_OUTPUT_ROOT = r'D:\SMB\code_file\拼接视频\output'
 
-CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.json')
+APP_DIR = _get_app_dir()
+DEFAULT_BGM_DIR = os.path.join(APP_DIR, 'BGM')
+DEFAULT_INPUT_ROOT = os.path.join(APP_DIR, 'input')
+DEFAULT_OUTPUT_ROOT = os.path.join(APP_DIR, 'output')
+CONFIG_PATH = os.path.join(APP_DIR, 'config.json')
 
 # 超过此数量时弹出确认
 WARN_PERM_COUNT = 500
