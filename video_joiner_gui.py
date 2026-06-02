@@ -284,10 +284,16 @@ def generate_all_permutations(groups: dict, ordered: bool = True, fixed_groups: 
     部分固定: fixed_groups 中的组保持原顺序，其余组随机排列
     """
     group_keys = sorted(groups.keys())
-    video_lists = [groups[k] for k in group_keys]
+    video_lists = [groups[k][:] for k in group_keys]  # 拷贝，避免污染原始 groups
 
     fixed_groups = fixed_groups or []
     fixed_set = set(fixed_groups)
+
+    # ── 无序/部分固定时：打乱每组视频的顺序，让视频出现顺序随机 ──
+    rng = random.Random(42)
+    for vl in video_lists:
+        rng.shuffle(vl)
+    # 固定组的视频也要打乱（部分固定模式下，组内顺序仍应随机）
 
     permutations = []
     for i, combo in enumerate(cartesian_product(*video_lists)):
@@ -298,12 +304,9 @@ def generate_all_permutations(groups: dict, ordered: bool = True, fixed_groups: 
             order = group_keys[:]
         elif fixed_groups:
             # 部分固定模式：固定组保持原位置，其余组随机排列
-            # 例如 fixed=['A'], groups=['A','B','C','D'] -> A 保持在原位，B,C,D 随机
             unfixed = [k for k in group_keys if k not in fixed_set]
-            # 对非固定组进行确定性随机
             shuffled = unfixed[:]
             random.Random(i * 31337).shuffle(shuffled)
-            # 重建顺序：按原顺序，固定组原位，非固定组用随机顺序替换
             order = []
             shuffled_idx = 0
             for k in group_keys:
@@ -327,6 +330,13 @@ def generate_all_permutations(groups: dict, ordered: bool = True, fixed_groups: 
             'status': '⏳ 待拼接',
             'output_file': ''
         })
+
+    # ── 无序/部分固定时：打乱排列顺序，避免规律性 ──
+    if not ordered:
+        random.Random(99).shuffle(permutations)
+        # 重编序号
+        for idx, perm in enumerate(permutations):
+            perm['index'] = idx + 1
 
     return permutations
 
