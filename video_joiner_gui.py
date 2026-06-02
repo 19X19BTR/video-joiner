@@ -785,7 +785,7 @@ class VideoJoinerApp:
 
         # BGM状态
         self.selected_bgm_files = []  # 用户选中的BGM文件列表
-        self.bgm_dir = DEFAULT_BGM_DIR
+        self.bgm_dir = self.config.get('bgm_dir', DEFAULT_BGM_DIR)
 
     def _build_preview_card(self, parent):
         card = ttk.Frame(parent, style='Card.TFrame')
@@ -894,7 +894,7 @@ class VideoJoinerApp:
     def _open_settings(self):
         win = tk.Toplevel(self.root)
         win.title("⚙ 设置")
-        win.geometry("560x220")
+        win.geometry("560x260")
         win.resizable(False, False)
         win.transient(self.root)
         win.grab_set()
@@ -903,7 +903,7 @@ class VideoJoinerApp:
         win.update_idletasks()
         x = self.root.winfo_x() + (self.root.winfo_width() - 560) // 2
         y = self.root.winfo_y() + (self.root.winfo_height() - 220) // 2
-        win.geometry(f"560x220+{x}+{y}")
+        win.geometry(f"560x260+{x}+{y}")
 
         tk.Label(win, text="⚙  路径设置", font=('Microsoft YaHei UI', 14, 'bold'),
                  bg=self.CARD_BG, fg=self.ACCENT).pack(pady=(16, 12))
@@ -928,17 +928,29 @@ class VideoJoinerApp:
         ttk.Button(row2, text="浏览",
                    command=lambda: self._settings_browse(output_var)).pack(side='right')
 
+        row3 = tk.Frame(win, bg=self.CARD_BG)
+        row3.pack(fill='x', padx=24, pady=6)
+        tk.Label(row3, text="BGM 目录：", font=('Microsoft YaHei UI', 10),
+                 bg=self.CARD_BG, width=12, anchor='e').pack(side='left')
+        bgm_var = tk.StringVar(value=self.bgm_dir)
+        tk.Entry(row3, textvariable=bgm_var, font=('Consolas', 10),
+                 width=42).pack(side='left', padx=(0, 8))
+        ttk.Button(row3, text="浏览",
+                   command=lambda: self._settings_browse(bgm_var)).pack(side='right')
+
         btn_frame = tk.Frame(win, bg=self.CARD_BG)
         btn_frame.pack(fill='x', padx=24, pady=(12, 0))
 
         def save_and_close():
             self.input_root = input_var.get()
             self.output_root = output_var.get()
+            self.bgm_dir = bgm_var.get()
             self.config['input_root'] = self.input_root
             self.config['output_root'] = self.output_root
+            self.config['bgm_dir'] = self.bgm_dir
             save_config(self.config)
             win.destroy()
-            self._log(f"设置已保存: 素材={self.input_root}, 输出={self.output_root}", 'title')
+            self._log(f"设置已保存: 素材={self.input_root}, 输出={self.output_root}, BGM={self.bgm_dir}", 'title')
 
         tk.Button(btn_frame, text="保存", font=('Microsoft YaHei UI', 10, 'bold'),
                   bg=self.ACCENT, fg='white', relief='flat', padx=24, pady=4,
