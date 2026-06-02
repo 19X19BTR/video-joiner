@@ -1682,6 +1682,18 @@ class VideoJoinerApp:
 # 启动
 # ═══════════════════════════════════════════════════════
 
+def setup_ffmpeg_path():
+    """将打包目录中的 ffmpeg 加入 PATH（PyInstaller 打包后生效）。"""
+    if getattr(sys, 'frozen', False):
+        # PyInstaller 打包后，ffmpeg 在 _internal/ 目录
+        internal_dir = os.path.join(os.path.dirname(sys.executable), '_internal')
+    else:
+        # 开发环境，ffmpeg 在脚本同级目录
+        internal_dir = os.path.dirname(os.path.abspath(__file__))
+    if os.path.isdir(internal_dir):
+        os.environ['PATH'] = internal_dir + os.pathsep + os.environ.get('PATH', '')
+
+
 def check_ffmpeg():
     try:
         subprocess.run(['ffmpeg', '-version'], capture_output=True, check=True)
@@ -1691,6 +1703,7 @@ def check_ffmpeg():
 
 
 def main():
+    setup_ffmpeg_path()  # 先尝试设置 ffmpeg 路径
     if not check_ffmpeg():
         root = tk.Tk()
         root.withdraw()
