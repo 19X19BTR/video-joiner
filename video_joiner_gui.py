@@ -45,9 +45,11 @@ from tkinter import ttk, filedialog, messagebox
 # ═══════════════════════════════════════════════════════
 
 VIDEO_EXTS = {'.mp4', '.mov', '.avi', '.mkv', '.flv', '.wmv', '.webm', '.m4v', '.ts'}
+AUDIO_EXTS = {'.mp3', '.wav', '.aac', '.flac', '.ogg', '.m4a', '.wma'}
 DEFAULT_FPS = 30
 DEFAULT_CRF = 23
 DEFAULT_AUDIO_BITRATE = '128k'
+DEFAULT_BGM_DIR = r'D:\SMB\code_file\拼接视频\BGM'
 
 DEFAULT_INPUT_ROOT = r'D:\SMB\code_file\拼接视频\input'
 DEFAULT_OUTPUT_ROOT = r'D:\SMB\code_file\拼接视频\output'
@@ -504,6 +506,73 @@ def concat_videos(video_list: list, output_path: str,
     return result.returncode == 0
 
 
+# ─── BGM 工具函数 ───
+
+def scan_bgm_files(bgm_dir: str) -> list:
+    """扫描BGM目录，返回音频文件列表。"""
+    if not os.path.exists(bgm_dir):
+        return []
+    files = []
+    for f in sorted(Path(bgm_dir).iterdir()):
+        if f.suffix.lower() in AUDIO_EXTS:
+            files.append({'name': f.stem, 'file': f.name, 'path': str(f.resolve())})
+    return files
+
+
+def add_bgm_to_video(video_path: str, bgm_path: str, output_path: str,
+                     video_duration: float = None) -> bool:
+    """
+    给视频添加BGM。
+    - BGM裁切到视频长度（尾端超出部分截断）
+    - BGM循环覆盖（如果BGM比视频短）
+    - 保留原视频音频，BGM混音（降低BGM音量）
+    """
+    if video_duration is None:
+        info = probe_video(video_path)
+        video_duration = info['duration']
+
+    # 使用 amix 混合原音频和BGM，BGM循环到视频长度，然后裁切
+    cmd = [
+        'ffmpeg', '-y', '-hide_banner', '-loglevel', 'warning',
+        '-i', video_path,
+        '-stream_loop', '-1',  # BGM循环
+        '-i', bgm_path,
+        '-filter_complex',
+        f'[1:a]atrim=0:{video_duration},asetpts=PTS-STARTPTS,afade=t=out:st={max(video_duration-2, 0)}:d=2,volume=0.3[bgm];'
+        f'[0:a][bgm]amix=inputs=2:duration=first:dropout_transition=2[aout]',
+        '-map', '0:v', '-map', '[aout]',
+        '-c:v', 'copy',  # 视频流直接复制，不重新编码
+        '-c:a', 'aac', '-b:a', DEFAULT_AUDIO_BITRATE,
+        '-shortest',
+        output_path
+    ]
+
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    return result.returncode == 0
+
+
+class BgmManager:
+    """BGM分配管理器：确保BGM均匀分布。"""
+
+    def __init__(self, bgm_files: list):
+        self.bgm_files = bgm_files
+        self._pool = []
+        self._seed = 42
+
+    def _refill_pool(self):
+        """重新填充池：复制一份文件列表并打乱。"""
+        self._pool = list(range(len(self.bgm_files)))
+        random.Random(self._seed).shuffle(self._pool)
+        self._seed += 1  # 每次填充用不同种子，避免重复模式
+
+    def next(self) -> dict:
+        """获取下一个BGM（均匀随机，不重复直到全部轮一遍）。"""
+        if not self._pool:
+            self._refill_pool()
+        idx = self._pool.pop()
+        return self.bgm_files[idx]
+
+
 # ═══════════════════════════════════════════════════════
 # GUI 应用
 # ═══════════════════════════════════════════════════════
@@ -683,7 +752,7 @@ class VideoJoinerApp:
 
         f3 = tk.LabelFrame(row, text="输出分辨率", font=('Microsoft YaHei UI', 9),
                            bg=self.CARD_BG, padx=10, pady=6)
-        f3.pack(side='left')
+        f3.pack(side='left', padx=(0, 16))
         self.res_var = tk.StringVar(
             value=self.config.get('resolution', '自动 (以第一个视频为准)'))
         ttk.Combobox(f3, textvariable=self.res_var,
@@ -691,6 +760,26 @@ class VideoJoinerApp:
                              '854x480', '3840x2160'],
                      state='readonly', width=24,
                      font=('Microsoft YaHei UI', 9)).pack()
+
+        # ── BGM 设置 ──
+        f4 = tk.LabelFrame(row, text="背景音乐", font=('Microsoft YaHei UI', 9),
+                           bg=self.CARD_BG, padx=10, pady=6)
+        f4.pack(side='left')
+        self.use_bgm_var = tk.BooleanVar(value=self.config.get('use_bgm', False))
+        tk.Checkbutton(f4, text="添加BGM", variable=self.use_bgm_var,
+                       font=('Microsoft YaHei UI', 9), bg=self.CARD_BG,
+                       command=self._on_bgm_toggle).pack(anchor='w')
+        self.bgm_info_label = tk.Label(f4, text="未选择", font=('Microsoft YaHei UI', 8),
+                                       bg=self.CARD_BG, fg='#999')
+        self.bgm_info_label.pack(anchor='w')
+        self.bgm_select_btn = tk.Button(f4, text="选择BGM...", font=('Microsoft YaHei UI', 8),
+                                        relief='flat', bg='#e8eaf6', padx=6, cursor='hand2',
+                                        command=self._open_bgm_picker)
+        self.bgm_select_btn.pack(anchor='w', pady=(2, 0))
+
+        # BGM状态
+        self.selected_bgm_files = []  # 用户选中的BGM文件列表
+        self.bgm_dir = DEFAULT_BGM_DIR
 
     def _build_preview_card(self, parent):
         card = ttk.Frame(parent, style='Card.TFrame')
@@ -856,6 +945,117 @@ class VideoJoinerApp:
         path = filedialog.askdirectory(title="选择目录")
         if path:
             var.set(path)
+
+    # ─── BGM ───
+
+    def _on_bgm_toggle(self):
+        """BGM开关切换。"""
+        if self.use_bgm_var.get():
+            # 打开时自动扫描BGM目录
+            if not self.selected_bgm_files:
+                all_bgm = scan_bgm_files(self.bgm_dir)
+                if all_bgm:
+                    self.selected_bgm_files = all_bgm
+                    self.bgm_info_label.config(
+                        text=f"已加载 {len(all_bgm)} 首（目录）", fg='#2e7d32')
+                else:
+                    self.bgm_info_label.config(text="⚠️ BGM目录为空", fg='#e65100')
+        else:
+            self.bgm_info_label.config(text="未选择", fg='#999')
+        self.config['use_bgm'] = self.use_bgm_var.get()
+        save_config(self.config)
+
+    def _open_bgm_picker(self):
+        """打开BGM选择弹窗。"""
+        all_bgm = scan_bgm_files(self.bgm_dir)
+        if not all_bgm:
+            messagebox.showwarning("提示", f"BGM目录为空或不存在：\n{self.bgm_dir}")
+            return
+
+        win = tk.Toplevel(self.root)
+        win.title("🎵 选择背景音乐")
+        win.geometry("500x420")
+        win.resizable(False, False)
+        win.transient(self.root)
+        win.grab_set()
+        win.configure(bg=self.CARD_BG)
+
+        win.update_idletasks()
+        x = self.root.winfo_x() + (self.root.winfo_width() - 500) // 2
+        y = self.root.winfo_y() + (self.root.winfo_height() - 420) // 2
+        win.geometry(f"500x420+{x}+{y}")
+
+        tk.Label(win, text="🎵  选择背景音乐", font=('Microsoft YaHei UI', 14, 'bold'),
+                 bg=self.CARD_BG, fg=self.ACCENT).pack(pady=(16, 8))
+        tk.Label(win, text=f"目录: {self.bgm_dir}", font=('Microsoft YaHei UI', 8),
+                 bg=self.CARD_BG, fg='#999').pack()
+
+        # 全选/全不选
+        btn_row = tk.Frame(win, bg=self.CARD_BG)
+        btn_row.pack(fill='x', padx=24, pady=(12, 4))
+
+        bgm_vars = []  # [(BooleanVar, bgm_dict)]
+
+        def select_all():
+            for var, _ in bgm_vars:
+                var.set(True)
+
+        def deselect_all():
+            for var, _ in bgm_vars:
+                var.set(False)
+
+        tk.Button(btn_row, text="全选", font=('Microsoft YaHei UI', 8),
+                  relief='flat', bg='#e8eaf6', padx=8, cursor='hand2',
+                  command=select_all).pack(side='left')
+        tk.Button(btn_row, text="全不选", font=('Microsoft YaHei UI', 8),
+                  relief='flat', bg='#e8eaf6', padx=8, cursor='hand2',
+                  command=deselect_all).pack(side='left', padx=(8, 0))
+        tk.Label(btn_row, text=f"共 {len(all_bgm)} 首",
+                 font=('Microsoft YaHei UI', 8), bg=self.CARD_BG, fg='#666').pack(side='right')
+
+        # 列表区
+        list_frame = tk.Frame(win, bg=self.CARD_BG)
+        list_frame.pack(fill='both', expand=True, padx=24, pady=(4, 8))
+
+        canvas = tk.Canvas(list_frame, bg=self.CARD_BG, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(list_frame, orient='vertical', command=canvas.yview)
+        scrollable = tk.Frame(canvas, bg=self.CARD_BG)
+
+        scrollable.bind('<Configure>', lambda e: canvas.configure(scrollregion=canvas.bbox('all')))
+        canvas.create_window((0, 0), window=scrollable, anchor='nw')
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        # 默认选中状态：基于之前的选择
+        selected_names = {f['name'] for f in self.selected_bgm_files}
+
+        for bgm in all_bgm:
+            var = tk.BooleanVar(value=(bgm['name'] in selected_names or len(selected_names) == 0))
+            bgm_vars.append((var, bgm))
+            tk.Checkbutton(scrollable, text=bgm['name'], variable=var,
+                           font=('Microsoft YaHei UI', 9), bg=self.CARD_BG,
+                           anchor='w').pack(fill='x', padx=8)
+
+        canvas.pack(side='left', fill='both', expand=True)
+        scrollbar.pack(side='right', fill='y')
+
+        # 确认按钮
+        def confirm():
+            self.selected_bgm_files = [bgm for var, bgm in bgm_vars if var.get()]
+            count = len(self.selected_bgm_files)
+            if count > 0:
+                self.bgm_info_label.config(
+                    text=f"已选 {count} 首", fg='#2e7d32')
+                self.use_bgm_var.set(True)
+            else:
+                self.bgm_info_label.config(text="未选择", fg='#999')
+                self.use_bgm_var.set(False)
+            self.config['use_bgm'] = self.use_bgm_var.get()
+            save_config(self.config)
+            win.destroy()
+
+        tk.Button(win, text="确认选择", font=('Microsoft YaHei UI', 10, 'bold'),
+                  bg=self.ACCENT, fg='white', relief='flat', padx=24, pady=6,
+                  cursor='hand2', command=confirm).pack(pady=(0, 16))
 
     # ─── 文件夹浏览 ───
 
@@ -1154,6 +1354,16 @@ class VideoJoinerApp:
 
         os.makedirs(output_dir, exist_ok=True)
 
+        # BGM设置
+        use_bgm = self.use_bgm_var.get()
+        bgm_files = self.selected_bgm_files if use_bgm else []
+        if use_bgm and not bgm_files:
+            # 尝试自动加载
+            bgm_files = scan_bgm_files(self.bgm_dir)
+            if not bgm_files:
+                messagebox.showwarning("提示", "已勾选BGM但未选择音乐文件！")
+                return None
+
         # 保存配置
         self.config['last_input'] = input_dir
         self.config['last_output'] = output_dir
@@ -1161,12 +1371,13 @@ class VideoJoinerApp:
         self.config['count'] = count
         self.config['resolution'] = self.res_var.get()
         self.config['rules'] = self.rules_var.get()
+        self.config['use_bgm'] = use_bgm
         # 保存部分固定的设置
         for key, var in self.partial_fixed_vars.items():
             self.config[f'fixed_{key}'] = var.get()
         save_config(self.config)
 
-        return selected_groups, ordered, fixed_groups, count, res_w, res_h, output_dir
+        return selected_groups, ordered, fixed_groups, count, res_w, res_h, output_dir, bgm_files
 
     # ─── 仅生成表格 ───
 
@@ -1175,7 +1386,7 @@ class VideoJoinerApp:
         if not params:
             return
 
-        groups, ordered, fixed_groups, _, _, _, output_dir = params
+        groups, ordered, fixed_groups, _, _, _, output_dir, _ = params
         date_str = os.path.basename(self.input_var.get())
         selected_keys = list(groups.keys())
         # 部分固定模式下，表格命名加上固定组信息
@@ -1223,7 +1434,7 @@ class VideoJoinerApp:
         if not params:
             return
 
-        groups, ordered, fixed_groups, count, res_w, res_h, output_dir = params
+        groups, ordered, fixed_groups, count, res_w, res_h, output_dir, bgm_files = params
         date_str = os.path.basename(self.input_var.get())
         selected_keys = list(groups.keys())
         excel_suffix = f"固定{''.join(fixed_groups)}" if fixed_groups else None
@@ -1250,7 +1461,7 @@ class VideoJoinerApp:
         self.result_label.config(text="")
 
         t = threading.Thread(target=self._run_process,
-                             args=(groups, ordered, fixed_groups, count, res_w, res_h, output_dir),
+                             args=(groups, ordered, fixed_groups, count, res_w, res_h, output_dir, bgm_files),
                              daemon=True)
         t.start()
 
@@ -1259,14 +1470,15 @@ class VideoJoinerApp:
         self._log("⏹ 用户请求停止...", 'warn')
         self.stop_btn.config(state='disabled')
 
-    def _run_process(self, groups, ordered, fixed_groups, count, res_w, res_h, output_dir):
+    def _run_process(self, groups, ordered, fixed_groups, count, res_w, res_h, output_dir, bgm_files=None):
         """后台线程：检查表格 → 继续未完成 或 生成全部。"""
         try:
             self.root.after(0, lambda: self._log_clear())
             self.root.after(0, lambda: self._log("🎬 开始拼接任务...", 'title'))
             mode_display = '有序' if ordered else ('无序' if not fixed_groups else f"部分固定(固定{''.join(fixed_groups)})")
-            self.root.after(0, lambda md=mode_display: self._log(
-                f"模式: {md} | 本次拼接: {count} 条"))
+            bgm_display = f" | BGM: {len(bgm_files)}首" if bgm_files else ""
+            self.root.after(0, lambda md=mode_display, bd=bgm_display: self._log(
+                f"模式: {md}{bd} | 本次拼接: {count} 条"))
 
             input_dir = self.input_var.get()
             date_str = os.path.basename(input_dir)
@@ -1326,7 +1538,8 @@ class VideoJoinerApp:
 
                 success, fail, skip = self._encode_loop(
                     encode_perms, groups, excel_path, output_dir, date_str,
-                    row_map=row_map, target_w=res_w, target_h=res_h)
+                    row_map=row_map, target_w=res_w, target_h=res_h,
+                    bgm_files=bgm_files)
 
             else:
                 # 没有表格 → 生成全部
@@ -1349,7 +1562,8 @@ class VideoJoinerApp:
 
                 success, fail, skip = self._encode_loop(
                     encode_perms, groups, excel_path, output_dir, date_str,
-                    target_w=res_w, target_h=res_h)
+                    target_w=res_w, target_h=res_h,
+                    bgm_files=bgm_files)
 
             # ── 完成报告 ──
             result_text = (f"✅ 成功: {success}   ⏭️ 跳过: {skip}   "
@@ -1371,10 +1585,14 @@ class VideoJoinerApp:
             self.root.after(0, self._reset_buttons)
 
     def _encode_loop(self, perms, groups, excel_path, output_dir, date_str,
-                     row_map=None, target_w=None, target_h=None):
+                     row_map=None, target_w=None, target_h=None, bgm_files=None):
         """编码循环。row_map 为 None 时按序号计算行号。"""
         success = fail = skip = 0
         total = len(perms)
+
+        # 初始化BGM管理器
+        bgm_mgr = BgmManager(bgm_files) if bgm_files else None
+        use_bgm = bgm_mgr is not None
 
         for idx, perm in enumerate(perms):
             if self.stop_flag:
@@ -1410,6 +1628,24 @@ class VideoJoinerApp:
             video_list = [vid for _, vid in perm['videos']]
             try:
                 ok = concat_videos(video_list, output_path, target_w, target_h)
+                if ok and use_bgm:
+                    # 拼接成功，添加BGM
+                    bgm = bgm_mgr.next()
+                    info = probe_video(output_path)
+                    bgm_output = output_path + '.bgm.mp4'
+                    bgm_ok = add_bgm_to_video(output_path, bgm['path'],
+                                              bgm_output, info['duration'])
+                    if bgm_ok:
+                        # 替换原文件
+                        os.replace(bgm_output, output_path)
+                        self.root.after(0, lambda n=output_name, b=bgm['name']: self._log(
+                            f"  🎵 {n} + BGM: {b}", 'info'))
+                    else:
+                        # BGM失败不影响视频，删除临时文件
+                        if os.path.exists(bgm_output):
+                            os.remove(bgm_output)
+                        self.root.after(0, lambda n=output_name: self._log(
+                            f"  ⚠️ {n} BGM添加失败，保留原音频", 'warn'))
                 if ok:
                     update_excel_status(excel_path, excel_row, '✅ 已完成',
                                         output_name, groups)
