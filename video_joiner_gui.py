@@ -957,7 +957,7 @@ class VideoJoinerApp:
                                 font=('Microsoft YaHei UI', 10, 'bold'),
                                 bg=self.CARD_BG, fg=color, selectcolor='#e8eaf6',
                                 activebackground=self.CARD_BG,
-                                command=self._update_perm_count)
+                                command=self._on_group_selection_change)
             cb.pack(side='left', padx=(12, 0))
             # 同时为部分固定模式创建/保留复选框变量
             if key not in self.partial_fixed_vars:
@@ -996,11 +996,23 @@ class VideoJoinerApp:
         self._log(f"扫描完成: {len(group_keys)} 组, {total_videos} 个视频, "
                   f"排列 {max_perms:,} 种", 'title')
 
+    def _on_group_selection_change(self):
+        """组别选择变化时：更新排列数量 + 刷新固定组UI + 清理取消勾选组的固定状态。"""
+        selected_keys = set(self._get_selected_groups().keys())
+        # 清理已取消勾选组的固定状态
+        for key, var in self.partial_fixed_vars.items():
+            if key not in selected_keys and var.get():
+                var.set(False)
+        self._update_perm_count()
+        # 如果是部分固定模式，同步刷新固定组UI
+        if self.mode_var.get() == 'partial':
+            self._update_partial_fixed_ui()
+
     def _toggle_all_groups(self, value: bool):
         """全选/全不选组别。"""
         for var in self.group_vars.values():
             var.set(value)
-        self._update_perm_count()
+        self._on_group_selection_change()
 
     def _on_mode_change(self):
         """排列模式切换时更新UI。"""
@@ -1011,7 +1023,7 @@ class VideoJoinerApp:
             self.partial_frame.pack_forget()
 
     def _update_partial_fixed_ui(self):
-        """更新部分固定组的复选框UI。"""
+        """更新部分固定组的复选框UI（只显示选中的组）。"""
         # 清空现有
         for widget in self.partial_fixed_frame.winfo_children():
             widget.destroy()
@@ -1022,11 +1034,13 @@ class VideoJoinerApp:
         if not self.groups:
             return
 
-        group_keys = sorted(self.groups.keys())
+        selected_keys = set(self._get_selected_groups().keys())
         colors = ['#1565c0', '#2e7d32', '#e65100', '#6a1b9a', '#00695c',
                   '#c62828', '#37474f', '#ad1457']
 
-        for i, key in enumerate(group_keys):
+        for i, key in enumerate(sorted(self.groups.keys())):
+            if key not in selected_keys:
+                continue  # 只显示选中的组
             if key not in self.partial_fixed_vars:
                 self.partial_fixed_vars[key] = tk.BooleanVar(value=False)
             color = colors[i % len(colors)]
