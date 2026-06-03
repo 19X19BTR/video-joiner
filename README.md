@@ -31,7 +31,7 @@ pip install openpyxl
 winget install ffmpeg
 
 # 运行
-python video_joiner_gui.py
+python main.py
 ```
 
 ## 🎯 使用方法
@@ -157,17 +157,23 @@ B 和 D 在第2、4位随机
 
 ```
 拼接视频/
-├── video_joiner_gui.py    # 主程序（GUI）
-├── installer.iss          # Inno Setup 安装脚本
-├── README.md              # 本文件
-├── 开发日志.md             # 开发过程记录
-├── config.json            # 运行时配置（自动生成）
-├── BGM/                   # 背景音乐目录
-├── input/                 # 素材目录
-├── output/                # 输出目录
-├── dist/                  # 打包输出
-│   └── 视频排列拼接工具_v1.0_安装包.exe
-└── build/                 # PyInstaller 构建目录
+├── main.py                 # 入口文件
+├── core/
+│   ├── __init__.py
+│   ├── constants.py        # 常量和路径配置
+│   ├── config.py           # 配置管理（config.json读写）
+│   ├── scanner.py          # 视频扫描与探测（ffprobe）
+│   ├── permuter.py         # 排列生成（有序/无序/部分固定）
+│   ├── encoder.py          # FFmpeg拼接与BGM混音
+│   └── excel.py            # Excel排列表格管理
+├── gui/
+│   ├── __init__.py
+│   └── app.py              # GUI应用与启动
+├── installer.iss           # Inno Setup 安装脚本
+├── video_joiner_gui.py     # 旧版单文件（参考用）
+├── BGM/                    # 背景音乐目录
+├── input/                  # 素材目录
+└── output/                 # 输出目录
 ```
 
 ## 📋 注意事项
@@ -181,7 +187,7 @@ B 和 D 在第2、4位随机
 
 ```bash
 # PyInstaller 打包
-pyinstaller --noconfirm --windowed --name video_joiner_gui video_joiner_gui.py
+pyinstaller --noconfirm --windowed --name video_joiner_gui main.py
 
 # 将 ffmpeg 相关文件复制到 dist/video_joiner_gui/_internal/
 # Inno Setup 编译 installer.iss 生成安装包
