@@ -186,9 +186,9 @@ B 和 D 在第2、4位随机
 ## 🛠️ 打包发布
 
 ```bash
-# PyInstaller 打包
-pyinstaller --noconfirm --windowed --name video_joiner_gui main.py
+# PyInstaller 打包（输出到 dist/视频排列拼接工具/）
+pyinstaller --noconfirm --windowed --name "视频排列拼接工具" main.py
 
-# 将 ffmpeg 相关文件复制到 dist/video_joiner_gui/_internal/
+# 将 ffmpeg.exe 和 ffprobe.exe 复制到 dist/视频排列拼接工具/_internal/
 # Inno Setup 编译 installer.iss 生成安装包
 ```
