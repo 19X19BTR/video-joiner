@@ -2,7 +2,7 @@
 ; Inno Setup 6
 
 #define MyAppName "视频排列拼接工具"
-#define MyAppVersion "1.1.0"
+#define MyAppVersion "1.1.1"
 #define MyAppPublisher "阿瑞"
 #define MyAppExeName "视频排列拼接工具.exe"
 
