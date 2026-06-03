@@ -38,7 +38,7 @@ class VideoJoinerApp:
         self.group_vars = {}  # {group_name: BooleanVar}
         self.is_running = False
         self.stop_flag = False
-        self.bgm_volume = 0.80  # BGM音量倍数（预览确认后更新）
+        self.bgm_volume = 1.0  # BGM音量倍数（预览确认后更新）
 
         self.config = load_config()
         self.input_root = self.config.get('input_root', DEFAULT_INPUT_ROOT)
@@ -589,27 +589,27 @@ class VideoJoinerApp:
                                      bg=self.CARD_BG, padx=16, pady=10)
         slider_frame.pack(fill='x', padx=24, pady=(0, 8))
 
-        vol_var = tk.DoubleVar(value=0.80)
-        vol_label_var = tk.StringVar(value="0.80")
+        vol_var = tk.DoubleVar(value=1.0)
+        vol_label_var = tk.StringVar(value="1.00")
 
         vol_row = tk.Frame(slider_frame, bg=self.CARD_BG)
         vol_row.pack(fill='x')
 
         tk.Label(vol_row, text="0.3", font=('Consolas', 8), bg=self.CARD_BG, fg='#999').pack(side='left')
-        vol_slider = tk.Scale(vol_row, from_=0.3, to=2.0, resolution=0.05,
+        vol_slider = tk.Scale(vol_row, from_=0.3, to=5.0, resolution=0.05,
                              orient='horizontal', variable=vol_var,
                              font=('Microsoft YaHei UI', 8), bg=self.CARD_BG,
                              troughcolor='#e8eaf6', length=300,
                              showvalue=False,
                              command=lambda v: vol_label_var.set(f"{float(v):.2f}"))
         vol_slider.pack(side='left', fill='x', expand=True, padx=8)
-        tk.Label(vol_row, text="2.0", font=('Consolas', 8), bg=self.CARD_BG, fg='#999').pack(side='left')
+        tk.Label(vol_row, text="5.0", font=('Consolas', 8), bg=self.CARD_BG, fg='#999').pack(side='left')
 
         vol_display = tk.Label(slider_frame, textvariable=vol_label_var,
                                font=('Consolas', 14, 'bold'), bg=self.CARD_BG, fg=self.ACCENT)
         vol_display.pack()
 
-        auto_vol = [0.80]
+        auto_vol = [1.0]
         def reset_auto():
             vol_var.set(auto_vol[0])
             vol_label_var.set(f"{auto_vol[0]:.2f}")
@@ -684,11 +684,11 @@ class VideoJoinerApp:
 
                 self.root.after(0, lambda: video_lufs_var.set(f"{v_db:.1f} dB"))
                 self.root.after(0, lambda: bgm_lufs_var.set(f"{b_db:.1f} dB"))
-                self.root.after(0, lambda: recommend_var.set("0.80  (原始混音已平衡)"))
+                self.root.after(0, lambda: recommend_var.set("1.00  (原始混音已平衡)"))
             else:
                 self.root.after(0, lambda: video_lufs_var.set("分析失败"))
                 self.root.after(0, lambda: bgm_lufs_var.set("分析失败"))
-                self.root.after(0, lambda: recommend_var.set("0.80  (默认值)"))
+                self.root.after(0, lambda: recommend_var.set("1.00  (默认值)"))
 
         threading.Thread(target=_analyze, daemon=True).start()
 
@@ -697,11 +697,11 @@ class VideoJoinerApp:
 
         def on_confirm():
             win.destroy()
-            callback(True, vol_var.get())
+            callback('confirm', vol_var.get())
 
         def on_skip_bgm():
             win.destroy()
-            callback(False, 0)
+            callback('skip', 0)
 
         tk.Button(btn_frame, text="✅ 满意，开始批量拼接",
                   font=('Microsoft YaHei UI', 10, 'bold'),
@@ -718,7 +718,7 @@ class VideoJoinerApp:
 
         def on_close():
             win.destroy()
-            callback(False, 0)
+            callback('cancel', 0)
         win.protocol("WM_DELETE_WINDOW", on_close)
 
         self.root.wait_window(win)
@@ -1116,8 +1116,13 @@ class VideoJoinerApp:
         first_bgm = bgm_files[0]
         video_info = probe_video(first_video['path'])
 
-        def on_preview_done(accepted, volume):
-            if not accepted:
+        def on_preview_done(action, volume):
+            if action == 'cancel':
+                self._log("⏹ 用户取消拼接", 'warn')
+                self._reset_buttons()
+                return
+
+            if action == 'skip':
                 bgm_display = " | BGM: 已跳过"
                 self._log_clear()
                 self._log("🎬 开始拼接任务...", 'title')
@@ -1130,6 +1135,7 @@ class VideoJoinerApp:
                 t.start()
                 return
 
+            # action == 'confirm'
             bgm_volumes = {bgm['path']: volume for bgm in bgm_files}
 
             self._log_clear()

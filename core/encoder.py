@@ -130,13 +130,13 @@ def calculate_bgm_volume(video_db: float, bgm_db: float, target_diff_db: float =
 
 
 def add_bgm_to_video(video_path: str, bgm_path: str, output_path: str,
-                     video_duration: float = None, bgm_volume: float = 0.80) -> bool:
+                     video_duration: float = None, bgm_volume: float = 1.0) -> bool:
     """
     给视频添加BGM。
     - BGM裁切到视频长度（尾端超出部分截断）
     - BGM循环覆盖（如果BGM比视频短）
     - 保留原视频音频，BGM混音
-    - bgm_volume: BGM音量倍数（默认1.0，原始混音）
+    - bgm_volume: BGM音量倍数（默认1.0，原始混音已平衡）
     - normalize=0: 关闭amix自动衰减，避免音量双重降低
     """
     if video_duration is None:
@@ -176,7 +176,7 @@ class BgmManager:
         """
         self.bgm_files = bgm_files
         self.bgm_volumes = bgm_volumes or {}  # {path: volume}
-        self.default_volume = 0.80
+        self.default_volume = 1.0
         self._pool = []
         self._seed = 42
 
