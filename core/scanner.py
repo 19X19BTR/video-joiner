@@ -8,7 +8,7 @@ import subprocess
 from collections import defaultdict
 from pathlib import Path
 
-from core.constants import VIDEO_EXTS, DEFAULT_FPS, _probe_cache
+from core.constants import VIDEO_EXTS, DEFAULT_FPS, _probe_cache, HIDDEN_SI
 
 
 def scan_videos(input_dir: str, rules: dict = None) -> dict:
@@ -69,7 +69,7 @@ def probe_video(video_path: str) -> dict:
     cmd = ['ffprobe', '-v', 'quiet', '-print_format', 'json',
            '-show_streams', '-show_format', video_path]
     try:
-        result = subprocess.run(cmd, capture_output=True, timeout=30)
+        result = subprocess.run(cmd, capture_output=True, timeout=30, startupinfo=HIDDEN_SI)
     except subprocess.TimeoutExpired:
         raise RuntimeError(f"ffprobe 超时: {video_path}")
 

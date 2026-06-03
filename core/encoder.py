@@ -9,7 +9,7 @@ import subprocess
 from pathlib import Path
 
 from core.constants import (
-    AUDIO_EXTS, DEFAULT_CRF, DEFAULT_AUDIO_BITRATE
+    AUDIO_EXTS, DEFAULT_CRF, DEFAULT_AUDIO_BITRATE, HIDDEN_SI
 )
 from core.scanner import probe_video
 
@@ -68,7 +68,7 @@ def concat_videos(video_list: list, output_path: str,
         cmd.extend(['-c:a', 'aac', '-b:a', DEFAULT_AUDIO_BITRATE])
     cmd.append(output_path)
 
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, text=True, startupinfo=HIDDEN_SI)
     return result.returncode == 0
 
 
@@ -97,7 +97,7 @@ def measure_audio_loudness(audio_path: str, duration_limit: float = None):
     cmd.extend(['-i', audio_path, '-af', 'volumedetect', '-f', 'null', '-'])
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60, startupinfo=HIDDEN_SI)
     except subprocess.TimeoutExpired:
         return None
 
@@ -162,7 +162,7 @@ def add_bgm_to_video(video_path: str, bgm_path: str, output_path: str,
         output_path
     ]
 
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, text=True, startupinfo=HIDDEN_SI)
     return result.returncode == 0
 
 

@@ -3,6 +3,7 @@ constants.py - 常量 & 路径配置
 """
 
 import os
+import subprocess
 import sys
 
 
@@ -28,5 +29,16 @@ DEFAULT_AUDIO_BITRATE = '128k'
 
 # 超过此数量时弹出确认
 WARN_PERM_COUNT = 500
+
+def _hidden_startupinfo():
+    """Windows subprocess 隐藏控制台窗口。"""
+    if os.name == 'nt':
+        si = subprocess.STARTUPINFO()
+        si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        si.wShowWindow = 0  # SW_HIDE
+        return si
+    return None
+
+HIDDEN_SI = _hidden_startupinfo()
 
 _probe_cache = {}

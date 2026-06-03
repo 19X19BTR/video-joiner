@@ -12,7 +12,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
 from core.constants import (
-    DEFAULT_INPUT_ROOT, DEFAULT_OUTPUT_ROOT, DEFAULT_BGM_DIR, WARN_PERM_COUNT
+    DEFAULT_INPUT_ROOT, DEFAULT_OUTPUT_ROOT, DEFAULT_BGM_DIR, WARN_PERM_COUNT, HIDDEN_SI
 )
 from core.config import load_config, save_config
 from core.scanner import scan_videos, probe_video, build_video_lookup
@@ -1372,7 +1372,7 @@ def setup_ffmpeg_path():
 
 def check_ffmpeg():
     try:
-        subprocess.run(['ffmpeg', '-version'], capture_output=True, check=True)
+        subprocess.run(['ffmpeg', '-version'], capture_output=True, check=True, startupinfo=HIDDEN_SI)
         return True
     except (FileNotFoundError, subprocess.CalledProcessError):
         return False
