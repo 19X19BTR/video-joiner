@@ -153,6 +153,24 @@ B 和 D 在第2、4位随机
 - **打包**：PyInstaller（文件夹模式）+ Inno Setup（安装包）
 - **配置持久化**：config.json 保存用户设置
 
+## 🧪 测试
+
+纯标准库 `unittest`，不需要 ffmpeg，也不需要装任何依赖：
+
+```bash
+python -m unittest discover -s tests -t .
+```
+
+15 个用例，覆盖排列生成这一层（`core/permuter.py`）：
+
+- 排列唯一标识与文件名清理（空格、全角括号、特殊字符）
+- 有序模式：数量 = 各组笛卡尔积、组顺序固定、每组各取一个、无重复、序号连续
+- 无序模式：跨运行可复现（固定种子）、组序确实会变、总数不变
+- 部分固定模式：固定组停在原位置、未固定组仍会换位
+- 不污染传入的 groups（做了深拷贝）
+
+> 拼接与 BGM 混音依赖 ffmpeg，不在单元测试范围内。
+
 ## 📁 项目结构
 
 ```
@@ -169,6 +187,7 @@ B 和 D 在第2、4位随机
 ├── gui/
 │   ├── __init__.py
 │   └── app.py              # GUI应用与启动
+├── tests/                  # 单元测试（permuter 排列逻辑）
 ├── installer.iss           # Inno Setup 安装脚本
 ├── legacy/video_joiner_gui_v1.py  # 旧版单文件（v1.0，参考用）
 ├── BGM/                    # 背景音乐目录
