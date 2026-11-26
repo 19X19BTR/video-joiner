@@ -190,9 +190,9 @@ python -m unittest discover -s tests -t .
 ├── tests/                  # 单元测试（permuter 排列逻辑）
 ├── installer.iss           # Inno Setup 安装脚本
 ├── legacy/video_joiner_gui_v1.py  # 旧版单文件（v1.0，参考用）
-├── BGM/                    # 背景音乐目录
-├── input/                  # 素材目录
-└── output/                 # 输出目录
+├── BGM/                    # 背景音乐目录（需自己建）
+├── input/                  # 素材目录（需自己建）
+└── output/                 # 输出目录（运行时自动创建）
 ```
 
 ## 📋 注意事项
