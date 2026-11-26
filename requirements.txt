@@ -1,0 +1,2 @@
+# 仅需 openpyxl；视频处理调用系统 ffmpeg，需自行安装并加入 PATH
+openpyxl>=3.1.0

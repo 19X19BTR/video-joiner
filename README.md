@@ -67,7 +67,7 @@ input/20260601/
 ### 2. 打开工具
 
 ```bash
-python video_joiner_gui.py
+python legacy/video_joiner_gui_v1.py
 ```
 
 ### 3. 选择素材目录
@@ -170,7 +170,7 @@ B 和 D 在第2、4位随机
 │   ├── __init__.py
 │   └── app.py              # GUI应用与启动
 ├── installer.iss           # Inno Setup 安装脚本
-├── video_joiner_gui.py     # 旧版单文件（参考用）
+├── legacy/video_joiner_gui_v1.py  # 旧版单文件（v1.0，参考用）
 ├── BGM/                    # 背景音乐目录
 ├── input/                  # 素材目录
 └── output/                 # 输出目录
